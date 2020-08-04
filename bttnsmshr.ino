@@ -18,10 +18,25 @@ int btn_event[6];
 #define RGBC 30
 Adafruit_NeoPixel strip(RGBC, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
+void boottest()
+{
+    for (int i = 0; i < 6; i++) {
+        digitalWrite(ctrls[i][LED], HIGH);
+        delay(100);
+        digitalWrite(ctrls[i][LED], LOW);
+    }
+    for(unsigned int i=0; i<strip.numPixels(); i++) {
+        strip.setPixelColor(i, strip.Color(255, 255, 255));
+        strip.show();
+        delay(100);
+        strip.setPixelColor(i, strip.Color(0, 0, 0));
+    }
+    strip.show();
+}
+
 void setup()
 {
     for (int i = 0; i < 6; i++) {
-        if (ctrls[i][BTN] < 0) continue;
         pinMode(ctrls[i][BTN], INPUT_PULLUP);
         pinMode(ctrls[i][LED], OUTPUT);
     }
@@ -34,6 +49,8 @@ void setup()
     strip.begin();
     strip.show();
     strip.setBrightness(255);
+
+    boottest();
 }
 
 void colorWipe(uint32_t color, int wait)
@@ -220,9 +237,9 @@ void game1()
 
 void loop()
 {
-    colorWipe(strip.Color(255,   0,   0), 1); // Red  
-    colorWipe(strip.Color(  0, 255,   0), 1); // Green
-    colorWipe(strip.Color(  0,   0, 255), 1); // Blue 
+    /*colorWipe(strip.Color(255,   0,   0), 1); // Red  */
+    /*colorWipe(strip.Color(  0, 255,   0), 1); // Green*/
+    /*colorWipe(strip.Color(  0,   0, 255), 1); // Blue */
 
     proc_bttns();
     if (1) {
