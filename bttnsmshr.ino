@@ -18,6 +18,8 @@ int btn_event[6];
 #define RGBC 30
 Adafruit_NeoPixel strip(RGBC, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
+#include "reaction.include"
+
 void boottest()
 {
     for (int i = 0; i < 6; i++) {
@@ -28,7 +30,7 @@ void boottest()
     for(unsigned int i=0; i<strip.numPixels(); i++) {
         strip.setPixelColor(i, strip.Color(255, 255, 255));
         strip.show();
-        delay(100);
+        delay(50);
         strip.setPixelColor(i, strip.Color(0, 0, 0));
     }
     strip.show();
@@ -48,18 +50,9 @@ void setup()
 
     strip.begin();
     strip.show();
-    strip.setBrightness(255);
+    strip.setBrightness(50);
 
     boottest();
-}
-
-void colorWipe(uint32_t color, int wait)
-{
-    for(unsigned int i=0; i<strip.numPixels(); i++) { // For each pixel in strip... 
-        strip.setPixelColor(i, color);         //  Set pixel's color (in RAM)
-        strip.show();                          //  Update strip to match     
-        delay(wait);                           //  Pause for a moment       
-    }
 }
 
 void proc_bttns()
@@ -76,176 +69,95 @@ void proc_bttns()
     }
 }
 
-void game0()
+void buttontest()
 {
     for (int i = 0; i < 6; i++) {
-        /*digitalWrite(ctrls[i][LED], btn_state[i]);*/
         if (btn_event[i] && btn_state[i]) {
             pulse(ctrls[i][LED], HIGH, 300);
         }
     }
 }
 
-void game1()
+void simonsays()
 {
-    int N = 6;
     static int state = 0;
-    static int players[6];
-    static unsigned long start;
-    static unsigned long dt;
+    static int seq[15];
+    static int seqlen;
+    static int seqi;
     if (state == 0) {
-        printf("state: %d (init)\n\r", state);
-        memset(&players, 0, sizeof(int[6]));
-        for (int i = 0; i < N; i++) {
+        randomSeed(millis());
+        for (int i = 0; i < 15; i++) {
+            seq[i] = random(0, 6);
+            printf("%d ", seq[i]);
+        }
+        printf("\r\n");
+        seqlen = 1;
+        seqi = 0;
+        for (int i = 0; i < 30; i++) {
+            strip.setPixelColor(i, strip.Color(0, 0, 0));
+        }
+        strip.show();
+        for (int i = 0; i < 6; i++) {
             digitalWrite(ctrls[i][LED], LOW);
         }
         state++;
-        printf("state: %d (select payers)\n\r", state);
     } else if (state == 1) {
-        //add new players
-        for (int i = 0; i < N; i++) {
-            if (btn_state[i]) {
-                players[i] = 1;
-                digitalWrite(ctrls[i][LED], HIGH);
-            }
-        }
-        //have all players released?
-        int nplayers=0;
-        int released = 1;
-        for (int i = 0; i < N; i++) {
-            if (!players[i]) continue;
-            nplayers++;
-            if (btn_state[i]) released = 0;
-        }
-        if (nplayers > 1 && released) {
-            state++;
-            printf("state: %d (starting)\n\r", state);
-        }
-    } else if (state == 2) {
-        //signal begin
-        for (int i = 0; i < N; i++) {
-            if (!players[i]) continue;
-            digitalWrite(ctrls[i][LED], LOW);
-        }
-        delay(300);
-        for (int i = 0; i < N; i++) {
-            if (!players[i]) continue;
-            printf("player %d plays\n\r", i);
-            digitalWrite(ctrls[i][LED], HIGH);
-            /*if (players[i]) pulse(ctrls[i][LED], HIGH, 300);*/
-        }
+        digitalWrite(ctrls[seq[seqlen-1]][LED], HIGH);
+        printf("seqlen: %d\n\r", seqlen);
         state++;
-        printf("state: %d (hold down!)\n\r", state);
-    } else if (state == 3) {
-        //every body hold down
-        int all_pressed = 1;
-        for (int i = 0; i < N; i++) {
-            if (!players[i]) continue;
-            /*digitalWrite(ctrls[i][LED], !btn_state[i]);*/
-            if (!btn_state[i]) {
-                all_pressed = 0;
-            } else if (btn_event[i]) {
-                blink(ctrls[i][LED], HIGH, 200);
-            }
+    } else if (state == 2) { //seqlen == seqi+1
+        for (int i = 0; i < 30; i++) {
+            strip.setPixelColor(i, strip.Color(0, 0, 0));
         }
-        if (all_pressed) {
-            state++;
-            printf("state: %d (okay)\n\r", state);
-            schedule_wipe();
-            for (int i = 0; i < N; i++) {
-                if (!players[i]) continue;
-                digitalWrite(ctrls[i][LED], LOW);
-            }
-            delay(10); //forgive the bounces
+        strip.setPixelColor(seqlen-1, strip.Color(255, 0, 0));
+        for (int i = 0; i < seqi; i++) {
+            strip.setPixelColor(i, strip.Color(0, 255, 0));
         }
-    } else if (state == 4) {
-        //begun. no one release
-        start = millis();
-        dt = 3000;
-        state++;
-        printf("state: %d (keep holding)\n\r", state);
-    } else if (state == 5) {
-        if (millis() < start+dt) {
-            //first to release loses
-            int released = 0;
-            for (int i = 0; i < N; i++) {
-                if (!players[i]) continue;
-                if (btn_event[i]) {
-                    printf("player %d slips!\n\r", i);
-                    released = 1;
-                    break;
-                }
-            }
-            if (released) {
-                for (int i = 0; i < N; i++) {
-                    if (!players[i]) continue;
-                    digitalWrite(ctrls[i][LED], HIGH);
-                }
-                for (int i = 0; i < N; i++) {
-                    if (!players[i]) continue;
-                    if (!btn_state[i])
-                        digitalWrite(ctrls[i][LED], LOW);
-                    else
-                        printf("player %d won!\n\r", i);
-                }
-                delay(3000);
-                state = 0;
-            }
-        } else {
-            state++;
-            printf("state: %d (wait for it!)\n\r", state);
-        }
-    } else if (state == 6) {
-        //begun. no one release
-        start = millis();
-        dt = 10000;
-        for (int i = 0; i < N; i++) {
-            digitalWrite(ctrls[i][LED], HIGH);
-        }
-        state++;
-        printf("state: %d (release!)\n\r", state);
-    } else if (state == 7) {
-        if (millis() < start+dt) {
-            //first to release wins
-            int released = 0;
-            for (int i = 0; i < N; i++) {
-                if (!players[i]) continue;
-                if (btn_event[i]) {
-                    released = 1;
-                    break;
-                }
-            }
-            if (released) {
-                for (int i = 0; i < N; i++) {
-                    digitalWrite(ctrls[i][LED], LOW);
-                }
-                for (int i = 0; i < N; i++) {
-                    if (!players[i]) continue;
-                    if (!btn_state[i]) {
-                        digitalWrite(ctrls[i][LED], HIGH);
-                        printf("player %d won!\n\r", i);
+        strip.show();
+
+        for (int i = 0; i < 6; i++) {
+            if (btn_event[i] && !btn_state[i]) {
+                printf("key %d seqi %d seq[seqi] %d\n\r", i, seqi, seq[seqi]);
+                if (i == seq[seqi]) {
+                    digitalWrite(ctrls[seq[seqlen-1]][LED], LOW);
+                    seqi++;
+                    if (seqi == seqlen-1) {
+                        printf("highlight last (next in seq:%d)\n\r", seqi);
+                        state = 1;
+                    } else if (seqi == seqlen) {
+                        printf("reset sequence\n\r");
+                        seqlen++;
+                        seqi = 0;
+                        state = 2;
+                    } else {
+                        printf("next in sequence\n\r");
+                        state = 2;
                     }
+                    break;
+                } else {
+                    printf("b0rk\n\r");
+                    state = 0;
+                    for (int i = 0; i < 30; i++) {
+                        strip.setPixelColor(i, strip.Color(255, 0, 0));
+                    }
+                    strip.show();
+                    delay(100);
+                    break;
                 }
-                delay(3000);
-                state = 0;
             }
-        } else { //timeout
-            state = 0;
         }
+        delay(20);
     }
 }
 
 void loop()
 {
-    /*colorWipe(strip.Color(255,   0,   0), 1); // Red  */
-    /*colorWipe(strip.Color(  0, 255,   0), 1); // Green*/
-    /*colorWipe(strip.Color(  0,   0, 255), 1); // Blue */
-
     proc_bttns();
-    if (1) {
-        game0();
-    } else {
-        game1();
-    }
+    simonsays();
+    /*if (1) {*/
+        /*buttontest();*/
+    /*} else {*/
+        /*game1();*/
+    /*}*/
     schedule_run();
 }
