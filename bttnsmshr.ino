@@ -1,6 +1,7 @@
 #include "scheduler.h"
 #include "tasks.h"
 #include "Adafruit_NeoPixel.h"
+#include <EEPROM.h>
 
 #define printf(fmt, ...)\
     do{snprintf(_pf_buffer_, sizeof(_pf_buffer_), fmt, ##__VA_ARGS__);Serial.print(_pf_buffer_);}while(0)
@@ -24,14 +25,29 @@ void boottest()
 {
     for (int i = 0; i < 6; i++) {
         digitalWrite(ctrls[i][LED], HIGH);
-        delay(100);
+    }
+    delay(150);
+    for (int i = 0; i < 6; i++) {
         digitalWrite(ctrls[i][LED], LOW);
     }
-    for(unsigned int i=0; i<strip.numPixels(); i++) {
+    delay(150);
+    for(unsigned int i=15; i<strip.numPixels(); i++) {
         strip.setPixelColor(i, strip.Color(255, 255, 255));
-        strip.show();
-        delay(50);
-        strip.setPixelColor(i, strip.Color(0, 0, 0));
+    }
+    strip.show();
+    delay(150);
+    for(unsigned int i=15; i<strip.numPixels(); i++) {
+        strip.setPixelColor(i, strip.Color(0,0,0));
+    }
+    strip.show();
+    delay(150);
+    for(unsigned int i=0; i<15; i++) {
+        strip.setPixelColor(i, strip.Color(255, 255, 255));
+    }
+    strip.show();
+    delay(150);
+    for(unsigned int i=0; i<15; i++) {
+        strip.setPixelColor(i, strip.Color(0,0,0));
     }
     strip.show();
 }
@@ -80,17 +96,18 @@ void buttontest()
 
 void simonsays()
 {
-    static int state = 0;
-    static int seq[15];
-    static int seqlen;
-    static int seqi;
+    static int8_t state = 0;
+    static int8_t seq[15];
+    static int8_t seqlen;
+    static int8_t seqi;
+    static int8_t highscore;
     if (state == 0) {
+        highscore = EEPROM.read(0);
+        if (highscore > 30) highscore = 0;
         randomSeed(millis());
         for (int i = 0; i < 15; i++) {
             seq[i] = random(0, 6);
-            printf("%d ", seq[i]);
         }
-        printf("\r\n");
         seqlen = 1;
         seqi = 0;
         for (int i = 0; i < 30; i++) {
@@ -103,13 +120,13 @@ void simonsays()
         state++;
     } else if (state == 1) {
         digitalWrite(ctrls[seq[seqlen-1]][LED], HIGH);
-        printf("seqlen: %d\n\r", seqlen);
         state++;
     } else if (state == 2) { //seqlen == seqi+1
         for (int i = 0; i < 30; i++) {
             strip.setPixelColor(i, strip.Color(0, 0, 0));
         }
         strip.setPixelColor(seqlen-1, strip.Color(255, 0, 0));
+        strip.setPixelColor(highscore, strip.Color(0, 0, 255));
         for (int i = 0; i < seqi; i++) {
             strip.setPixelColor(i, strip.Color(0, 255, 0));
         }
@@ -117,31 +134,36 @@ void simonsays()
 
         for (int i = 0; i < 6; i++) {
             if (btn_event[i] && !btn_state[i]) {
-                printf("key %d seqi %d seq[seqi] %d\n\r", i, seqi, seq[seqi]);
                 if (i == seq[seqi]) {
                     digitalWrite(ctrls[seq[seqlen-1]][LED], LOW);
                     seqi++;
+                    if (seqi > highscore) {
+                        highscore = seqi;
+                        EEPROM.write(0, highscore);
+                    }
                     if (seqi == seqlen-1) {
-                        printf("highlight last (next in seq:%d)\n\r", seqi);
                         state = 1;
                     } else if (seqi == seqlen) {
-                        printf("reset sequence\n\r");
                         seqlen++;
+                        if (seqlen > 15) {
+                            state = 0;
+                            for (int i = 0; i < 30; i++) {
+                                strip.setPixelColor(i, strip.Color(0, 255, 0));
+                            }
+                            strip.show();
+                            delay(3000);
+
+                        }
                         seqi = 0;
-                        state = 2;
-                    } else {
-                        printf("next in sequence\n\r");
-                        state = 2;
                     }
                     break;
                 } else {
-                    printf("b0rk\n\r");
                     state = 0;
                     for (int i = 0; i < 30; i++) {
                         strip.setPixelColor(i, strip.Color(255, 0, 0));
                     }
                     strip.show();
-                    delay(100);
+                    delay(1000);
                     break;
                 }
             }
