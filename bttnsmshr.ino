@@ -8,15 +8,16 @@
 #define _PRINTF_BUFFER_LENGTH_ 64
 static char _pf_buffer_[_PRINTF_BUFFER_LENGTH_];
 
-#define btn_lights(state)\
-    for (int i = 0; i < 6; i++) { digitalWrite(ctrls[i][LED], state); }
+#define N_BUTTONS 6
 
+#define btn_lights(state)\
+    for (int i = 0; i < N_BUTTONS; i++) { digitalWrite(ctrls[i][LED], state); }
 
 #define BTN 0
 #define LED 1
-static const int8_t ctrls[6][2] = {{8, 2},{9, 3},{10, 4},{11, 5},{12, 6},{7, 13}};
-int btn_state[6];
-int btn_event[6];
+static const int8_t ctrls[N_BUTTONS][2] = {{8, 2},{9, 3},{10, 4},{11, 5},{12, 6},{7, 13}};
+int btn_state[N_BUTTONS];
+int btn_event[N_BUTTONS];
 
 //LEDSTRAND
 #define RGB_PIN A0
@@ -48,14 +49,14 @@ void boottest()
 
 void setup()
 {
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < N_BUTTONS; i++) {
         pinMode(ctrls[i][BTN], INPUT_PULLUP);
         pinMode(ctrls[i][LED], OUTPUT);
     }
     pinMode(SPKR_PIN, OUTPUT);
     schedule_init();
-    memset(&btn_state, 0, sizeof(int[6]));
-    memset(&btn_event, 0, sizeof(int[6]));
+    memset(&btn_state, 0, sizeof(int[N_BUTTONS]));
+    memset(&btn_event, 0, sizeof(int[N_BUTTONS]));
     Serial.begin(9600);
     printf("EHLO\n\r");
 
@@ -68,9 +69,9 @@ void setup()
 
 void proc_bttns()
 {
-    int btn_pstate[6];
-    memcpy(&btn_pstate, &btn_state, sizeof(int[6]));
-    for (int i = 0; i < 6; i++) {
+    int btn_pstate[N_BUTTONS];
+    memcpy(&btn_pstate, &btn_state, sizeof(int[N_BUTTONS]));
+    for (int i = 0; i < N_BUTTONS; i++) {
         if (ctrls[i][BTN] < 0) continue;
         btn_state[i] = !digitalRead(ctrls[i][BTN]);
         btn_event[i] = (btn_state[i] != btn_pstate[i]);
@@ -82,7 +83,7 @@ void proc_bttns()
 
 void buttontest()
 {
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < N_BUTTONS; i++) {
         if (btn_event[i] && btn_state[i]) {
             pulse(ctrls[i][LED], HIGH, 300);
         }
@@ -101,13 +102,13 @@ void simonsays()
         if (highscore > 30) highscore = 0;
         randomSeed(millis());
         for (int i = 0; i < 15; i++) {
-            seq[i] = random(0, 6);
+            seq[i] = random(0, N_BUTTONS);
         }
         seqlen = 1;
         seqi = 0;
         strip.clear();
         strip.show();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < N_BUTTONS; i++) {
             digitalWrite(ctrls[i][LED], LOW);
         }
         state++;
@@ -124,7 +125,7 @@ void simonsays()
         }
         strip.show();
 
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < N_BUTTONS; i++) {
             if (btn_event[i] && !btn_state[i]) {
                 if (i == seq[seqi]) {
                     digitalWrite(ctrls[seq[seqlen-1]][LED], LOW);
@@ -160,24 +161,45 @@ void simonsays()
     }
 }
 
+void glitch_task(int pin, int level, int state)
+{
+    if (state == 0) {
+        digitalWrite(pin, HIGH);
+        (void) schedule_insert(glitch_task, pin, !level, 1, millis()+random(500, 8000));
+    } else if (state == 1) {
+        digitalWrite(pin, LOW);
+        (void) schedule_insert(glitch_task, pin, !level, 2, millis()+100);
+    } else if (state == 2) {
+        digitalWrite(pin, HIGH);
+        (void) schedule_insert(glitch_task, pin, !level, 3, millis()+100);
+    } else if (state == 3) {
+        digitalWrite(pin, LOW);
+        (void) schedule_insert(glitch_task, pin, !level, 0, millis()+100);
+    }
+}
+
 static int8_t
 game_selection()
 {
+    int ngames = 4;
     static int8_t state = 0;
     if (state == 0) {
         schedule_insert(kit, 4000, 0, 15, millis());
+        for (int i = 0; i < ngames; i++) {
+            schedule_insert(glitch_task, ctrls[i][LED], HIGH, 0, millis());
+        }
         state++;
     }
 
-    int ngames = 4;
-    for (int i = 0; i < ngames; i++) {
-        digitalWrite(ctrls[i][LED], HIGH);
-    }
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < N_BUTTONS; i++) {
         if (btn_event[i] && !btn_state[i]) {
             schedule_remove(kit);
+            schedule_remove(glitch_task);
             strip.clear();
             strip.show();
+            for (int i = 0; i < N_BUTTONS; i++) {
+                digitalWrite(ctrls[i][LED], LOW);
+            }
             return i;
         }
     }
@@ -187,8 +209,6 @@ game_selection()
 void
 beep(int pin, int state, int dt)
 {
-    /*if (state) {*/
-        /*dt = millis()/440*/
     digitalWrite(pin, state);
     schedule_insert(beep, pin, !state, dt, millis()+dt);
 }
@@ -226,7 +246,7 @@ void loop()
             selection = game_selection();
             delay(10);//debounce
             if (selection >= 0) {
-                for (int i = 0; i < 6; i++) {
+                for (int i = 0; i < N_BUTTONS; i++) {
                     digitalWrite(ctrls[i][LED], LOW);
                 }
             }

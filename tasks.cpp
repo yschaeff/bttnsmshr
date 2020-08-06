@@ -56,8 +56,6 @@ kit(int period, int startled, int nleds)
     float e = 2.71828;
     for(int i=0; i<nleds; i++) {
         float br = 255 * pow(e, -.5*pow((i/(float)nleds-pos)/sigma, 2));
-        //if (i/(float)nleds > pos && sin(millis()*2*PI/period) < 0) br=0;
-        //if (i/(float)nleds < pos && sin(millis()*2*PI/period) > 0) br=0;
         strip.setPixelColor(i+startled, strip.Color((int)br, 0, 0));
     }
     strip.show();
