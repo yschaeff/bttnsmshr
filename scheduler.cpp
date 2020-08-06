@@ -43,6 +43,14 @@ int schedule_insert(void(*func)(int, int, int), int arg1, int arg2, int arg3, lo
     return 1;
 }
 
+void schedule_remove(void(*func)(int, int, int))
+{
+    for (int i = 0; i<NTASKS; i++) {
+        if (schedule[i].func != func) continue;
+        schedule[i].time = 0;
+    }
+}
+
 void schedule_wipe()
 {
     for (int i = 0; i<NTASKS; i++) {

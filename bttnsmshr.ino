@@ -8,6 +8,10 @@
 #define _PRINTF_BUFFER_LENGTH_ 64
 static char _pf_buffer_[_PRINTF_BUFFER_LENGTH_];
 
+#define btn_lights(state)\
+    for (int i = 0; i < 6; i++) { digitalWrite(ctrls[i][LED], state); }
+
+
 #define BTN 0
 #define LED 1
 static const int8_t ctrls[6][2] = {{8, 2},{9, 3},{10, 4},{11, 5},{12, 6},{7, 13}};
@@ -19,36 +23,26 @@ int btn_event[6];
 #define RGBC 30
 Adafruit_NeoPixel strip(RGBC, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
+#define SPKR_PIN A2
+
 #include "reaction.include"
 
 void boottest()
 {
-    for (int i = 0; i < 6; i++) {
-        digitalWrite(ctrls[i][LED], HIGH);
-    }
+    btn_lights(HIGH);
     delay(150);
-    for (int i = 0; i < 6; i++) {
-        digitalWrite(ctrls[i][LED], LOW);
-    }
+    btn_lights(LOW);
     delay(150);
-    for(unsigned int i=15; i<strip.numPixels(); i++) {
-        strip.setPixelColor(i, strip.Color(255, 255, 255));
-    }
+    strip.fill(strip.Color(255, 255, 255), 15, 15);
     strip.show();
     delay(150);
-    for(unsigned int i=15; i<strip.numPixels(); i++) {
-        strip.setPixelColor(i, strip.Color(0,0,0));
-    }
+    strip.clear();
     strip.show();
     delay(150);
-    for(unsigned int i=0; i<15; i++) {
-        strip.setPixelColor(i, strip.Color(255, 255, 255));
-    }
+    strip.fill(strip.Color(255, 255, 255), 0, 15);
     strip.show();
     delay(150);
-    for(unsigned int i=0; i<15; i++) {
-        strip.setPixelColor(i, strip.Color(0,0,0));
-    }
+    strip.clear();
     strip.show();
 }
 
@@ -58,6 +52,7 @@ void setup()
         pinMode(ctrls[i][BTN], INPUT_PULLUP);
         pinMode(ctrls[i][LED], OUTPUT);
     }
+    pinMode(SPKR_PIN, OUTPUT);
     schedule_init();
     memset(&btn_state, 0, sizeof(int[6]));
     memset(&btn_event, 0, sizeof(int[6]));
@@ -110,9 +105,7 @@ void simonsays()
         }
         seqlen = 1;
         seqi = 0;
-        for (int i = 0; i < 30; i++) {
-            strip.setPixelColor(i, strip.Color(0, 0, 0));
-        }
+        strip.clear();
         strip.show();
         for (int i = 0; i < 6; i++) {
             digitalWrite(ctrls[i][LED], LOW);
@@ -122,11 +115,10 @@ void simonsays()
         digitalWrite(ctrls[seq[seqlen-1]][LED], HIGH);
         state++;
     } else if (state == 2) { //seqlen == seqi+1
-        for (int i = 0; i < 30; i++) {
-            strip.setPixelColor(i, strip.Color(0, 0, 0));
-        }
+        strip.clear();
         strip.setPixelColor(seqlen-1, strip.Color(255, 0, 0));
         strip.setPixelColor(highscore, strip.Color(0, 0, 255));
+        /*strip.fill(strip.Color(0, 255, 0), 0, seqi);*/
         for (int i = 0; i < seqi; i++) {
             strip.setPixelColor(i, strip.Color(0, 255, 0));
         }
@@ -147,9 +139,7 @@ void simonsays()
                         seqlen++;
                         if (seqlen > 15) {
                             state = 0;
-                            for (int i = 0; i < 30; i++) {
-                                strip.setPixelColor(i, strip.Color(0, 255, 0));
-                            }
+                            strip.fill(strip.Color(0, 255, 0), 0, strip.numPixels());
                             strip.show();
                             delay(3000);
 
@@ -159,9 +149,7 @@ void simonsays()
                     break;
                 } else {
                     state = 0;
-                    for (int i = 0; i < 30; i++) {
-                        strip.setPixelColor(i, strip.Color(255, 0, 0));
-                    }
+                    strip.fill(strip.Color(255, 0, 0), 0, strip.numPixels());
                     strip.show();
                     delay(1000);
                     break;
@@ -172,14 +160,77 @@ void simonsays()
     }
 }
 
+static int8_t
+game_selection()
+{
+    static int8_t state = 0;
+    if (state == 0) {
+        schedule_insert(kit, 4000, 0, 15, millis());
+        state++;
+    }
+
+    int ngames = 4;
+    for (int i = 0; i < ngames; i++) {
+        digitalWrite(ctrls[i][LED], HIGH);
+    }
+    for (int i = 0; i < 6; i++) {
+        if (btn_event[i] && !btn_state[i]) {
+            schedule_remove(kit);
+            strip.clear();
+            strip.show();
+            return i;
+        }
+    }
+    return -1;
+}
+
+void
+beep(int pin, int state, int dt)
+{
+    /*if (state) {*/
+        /*dt = millis()/440*/
+    digitalWrite(pin, state);
+    schedule_insert(beep, pin, !state, dt, millis()+dt);
+}
+
+void
+music()
+{
+    static int8_t state = 0;
+    if (state == 0) {
+        schedule_insert(beep, SPKR_PIN, HIGH, 0, millis());
+        schedule_insert(blink, ctrls[4][LED], HIGH, 500, millis());
+        state++;
+    }
+}
+
 void loop()
 {
+    static int8_t selection = -1;
     proc_bttns();
-    simonsays();
-    /*if (1) {*/
-        /*buttontest();*/
-    /*} else {*/
-        /*game1();*/
-    /*}*/
+
+    switch (selection) {
+        case 0:
+            simonsays();
+            break;
+        case 1:
+            buttontest();
+            break;
+        case 2:
+            game1();
+            break;
+        case 3:
+            music();
+            break;
+        default:
+            selection = game_selection();
+            delay(10);//debounce
+            if (selection >= 0) {
+                for (int i = 0; i < 6; i++) {
+                    digitalWrite(ctrls[i][LED], LOW);
+                }
+            }
+    }
+
     schedule_run();
 }

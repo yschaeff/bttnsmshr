@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "scheduler.h"
 #include "tasks.h"
+#include "Adafruit_NeoPixel.h"
 
 #define HEARTBEAT_PERIOD 3000
 #define HEARTBEAT_DELAY 40
@@ -44,3 +45,22 @@ void blink(int pin, int level, int duration)
     digitalWrite(pin, level);
     (void) schedule_insert(blink, pin, !level, duration, millis()+duration);
 }
+
+extern Adafruit_NeoPixel strip;
+void
+kit(int period, int startled, int nleds)
+{
+    float pos = cos((millis()*2*PI)/(float)period)/2+.5;
+    float sigma = 4.0/nleds;
+        Serial.println(pos);
+    float e = 2.71828;
+    for(int i=0; i<nleds; i++) {
+        float br = 255 * pow(e, -.5*pow((i/(float)nleds-pos)/sigma, 2));
+        //if (i/(float)nleds > pos && sin(millis()*2*PI/period) < 0) br=0;
+        //if (i/(float)nleds < pos && sin(millis()*2*PI/period) > 0) br=0;
+        strip.setPixelColor(i+startled, strip.Color((int)br, 0, 0));
+    }
+    strip.show();
+    schedule_insert(kit, period, startled, nleds, millis()+30);
+}
+
