@@ -4,6 +4,7 @@
 #include "tasks.h"
 #include "Adafruit_NeoPixel.h"
 #include "engine.h"
+#include "debounce.h"
 
 #define printf(fmt, ...)\
     do{snprintf(_pf_buffer_, sizeof(_pf_buffer_), fmt, ##__VA_ARGS__);Serial.print(_pf_buffer_);}while(0)
@@ -215,15 +216,10 @@ music()
 }
 
 static void
-tetris(int init)
+tetris_tick(int barptr, int dt, int arg3)
 {
-    int8_t colorcount = 3;
     const int8_t barlen = 15;
-    static char bar[barlen];
-    if (init) {
-        for (int i = 0; i < barlen; i++)
-            bar[i] = 0;
-    }
+    static char *bar = (char *)barptr;
     int c;
     int cc = 0;
     int stable = 1;
@@ -253,33 +249,14 @@ tetris(int init)
         } else {
             bar[barlen-1] = random(1,4);
         }
-    } else {
-        int8_t pinx = -1;
-        for (int i = barlen-1; i >= 0; i--) {
-            if(bar[i]) {
-                pinx = i;
-                break;
-            }
-        }
-        if (pinx >= 0) {
-            if (btn_state[0]) {
-                bar[pinx] %= colorcount;
-                bar[pinx]++;
-            }
-            if (btn_state[1]) {
-                int8_t freex = -1;
-                for (int i = pinx-1; i >= 0; i--) {
-                    if (bar[i]) break;
-                    freex = i;
-                }
-                if (freex >= 0) {
-                    bar[freex] = bar[pinx];
-                    bar[pinx] = 0;
-                }
-            }
-        }
     }
+    schedule_insert(tetris_tick, barptr, dt, arg3, millis()+dt);
+}
 
+static void
+tetris_display_update(int dt, int barptr, int barlen)
+{
+    static char *bar = (char *)barptr;
     for (int i = 0; i < barlen; i++) {
         switch (bar[i]) {
         case 0:
@@ -296,7 +273,50 @@ tetris(int init)
         }
     }
     strip.show();
-    delay(200);
+    schedule_insert(tetris_display_update, dt, barptr, barlen, millis()+dt);
+}
+
+static void
+tetris(int init)
+{
+    int8_t colorcount = 3;
+    const int8_t barlen = 15;
+    static char bar[barlen];
+    if (init) {
+        for (int i = 0; i < barlen; i++)
+            bar[i] = 0;
+        schedule_insert(tetris_tick, (int)bar, 200, -1, millis());
+        schedule_insert(tetris_display_update, 20, (int)bar, barlen, millis());
+    }
+    int8_t pinx = -1;
+    for (int i = barlen-1; i >= 0; i--) {
+        if(bar[i]) {
+            pinx = i;
+            break;
+        }
+    }
+    int btn1 = debounce(btn_state[0], 20, 0) && btn_state[0];
+    int btn2 = debounce(btn_state[1], 20, 1) && btn_state[1];
+    int stable = (pinx == 0 || bar[pinx-1]);
+    if (!stable) {
+        if (pinx >= 0) {
+            if (btn1) {
+                bar[pinx] %= colorcount;
+                bar[pinx]++;
+            }
+            if (btn2) {
+                int8_t freex = -1;
+                for (int i = pinx-1; i >= 0; i--) {
+                    if (bar[i]) break;
+                    freex = i;
+                }
+                if (freex >= 0) {
+                    bar[freex] = bar[pinx];
+                    bar[pinx] = 0;
+                }
+            }
+        }
+    }
 }
 
 void
