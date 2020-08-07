@@ -283,10 +283,11 @@ tetris(int init)
     const int8_t barlen = 15;
     static char bar[barlen];
     if (init) {
-        for (int i = 0; i < barlen; i++)
-            bar[i] = 0;
+        memset(bar, 0, sizeof(bar));
         schedule_insert(tetris_tick, (int)bar, 200, -1, millis());
         schedule_insert(tetris_display_update, 20, (int)bar, barlen, millis());
+        digitalWrite(ctrls[0][LED], HIGH);
+        schedule_insert(blink, ctrls[1][LED], HIGH, 100, millis());
     }
     int8_t pinx = -1;
     for (int i = barlen-1; i >= 0; i--) {
