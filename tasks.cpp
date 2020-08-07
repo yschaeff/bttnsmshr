@@ -62,3 +62,25 @@ kit(int period, int startled, int nleds)
     schedule_insert(kit, period, startled, nleds, millis()+30);
 }
 
+void
+glitch_task(int pin, int state, int arg3)
+{
+    switch (state) {
+    case 0:
+        digitalWrite(pin, HIGH);
+        (void) schedule_insert(glitch_task, pin, 1, arg3, millis()+random(500, 8000));
+        break;
+    case 1:
+        digitalWrite(pin, LOW);
+        (void) schedule_insert(glitch_task, pin, 2, arg3, millis()+100);
+        break;
+    case 2:
+        digitalWrite(pin, HIGH);
+        (void) schedule_insert(glitch_task, pin, 3, arg3, millis()+100);
+        break;
+    case 3:
+        digitalWrite(pin, LOW);
+        (void) schedule_insert(glitch_task, pin, 0, arg3, millis()+100);
+        break;
+    }
+}

@@ -80,9 +80,9 @@ proc_bttns()
         if (ctrls[i][BTN] < 0) continue;
         btn_state[i] = !digitalRead(ctrls[i][BTN]);
         btn_event[i] = (btn_state[i] != btn_pstate[i]);
-        if (btn_event[i]) {
-            printf("%d:%d\n\r", ctrls[i][BTN], btn_state[i]);
-        }
+        //if (btn_event[i]) {
+            //printf("%d:%d\n\r", ctrls[i][BTN], btn_state[i]);
+        //}
     }
 }
 
@@ -107,7 +107,6 @@ simonsays()
     if (state == 0) {
         highscore = EEPROM.read(0);
         if (highscore > 30) highscore = 0;
-        randomSeed(millis());
         for (int i = 0; i < 15; i++) {
             seq[i] = random(0, N_BUTTONS);
         }
@@ -168,28 +167,10 @@ simonsays()
     }
 }
 
-static void
-glitch_task(int pin, int level, int state)
-{
-    if (state == 0) {
-        digitalWrite(pin, HIGH);
-        (void) schedule_insert(glitch_task, pin, !level, 1, millis()+random(500, 8000));
-    } else if (state == 1) {
-        digitalWrite(pin, LOW);
-        (void) schedule_insert(glitch_task, pin, !level, 2, millis()+100);
-    } else if (state == 2) {
-        digitalWrite(pin, HIGH);
-        (void) schedule_insert(glitch_task, pin, !level, 3, millis()+100);
-    } else if (state == 3) {
-        digitalWrite(pin, LOW);
-        (void) schedule_insert(glitch_task, pin, !level, 0, millis()+100);
-    }
-}
-
 static int8_t
 game_selection()
 {
-    int ngames = 4;
+    int ngames = 5;
     static int8_t state = 0;
     if (state == 0) {
         schedule_insert(kit, 4000, 0, 15, millis());
@@ -208,6 +189,7 @@ game_selection()
             for (int i = 0; i < N_BUTTONS; i++) {
                 digitalWrite(ctrls[i][LED], LOW);
             }
+            randomSeed(millis());
             return i;
         }
     }
@@ -232,9 +214,96 @@ music()
     }
 }
 
-void mainloop()
+static void
+tetris(int init)
+{
+    int8_t colorcount = 3;
+    const int8_t barlen = 15;
+    static char bar[barlen];
+    if (init) {
+        for (int i = 0; i < barlen; i++)
+            bar[i] = 0;
+    }
+    int c;
+    int cc = 0;
+    int stable = 1;
+    for (int i = 0; i < barlen-1; i++) {
+        if (bar[i] == 0) {
+            if (bar[i+1]) stable = 0;
+            bar[i] = bar[i+1];
+            bar[i+1] = 0;
+            cc = 0;
+        } else if (bar[i] == c) {
+            cc++;
+            if (cc == 3) {
+                bar[i] = 0;
+                bar[i-1] = 0;
+                bar[i-2] = 0;
+                cc = 0;
+            }
+        } else {
+            c = bar[i];
+            cc = 1;
+        }
+    }
+    if (stable) {
+        if (bar[barlen-1]) {
+            for (int i = 0; i < barlen; i++)
+                bar[i] = 1;
+        } else {
+            bar[barlen-1] = random(1,4);
+        }
+    } else {
+        int8_t pinx = -1;
+        for (int i = barlen-1; i >= 0; i--) {
+            if(bar[i]) {
+                pinx = i;
+                break;
+            }
+        }
+        if (pinx >= 0) {
+            if (btn_state[0]) {
+                bar[pinx] %= colorcount;
+                bar[pinx]++;
+            }
+            if (btn_state[1]) {
+                int8_t freex = -1;
+                for (int i = pinx-1; i >= 0; i--) {
+                    if (bar[i]) break;
+                    freex = i;
+                }
+                if (freex >= 0) {
+                    bar[freex] = bar[pinx];
+                    bar[pinx] = 0;
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < barlen; i++) {
+        switch (bar[i]) {
+        case 0:
+            strip.setPixelColor(i, strip.Color(0, 0, 0));
+            break;
+        case 1:
+            strip.setPixelColor(i, strip.Color(255, 0, 0));
+            break;
+        case 2:
+            strip.setPixelColor(i, strip.Color(0, 255, 0));
+            break;
+        case 3:
+            strip.setPixelColor(i, strip.Color(0, 0, 255));
+        }
+    }
+    strip.show();
+    delay(200);
+}
+
+void
+mainloop()
 {
     static int8_t selection = -1;
+    static int8_t init = 1;
     proc_bttns();
 
     switch (selection) {
@@ -250,6 +319,10 @@ void mainloop()
         case 3:
             music();
             break;
+        case 4:
+            tetris(init);
+            init = 0;
+            break;
         default:
             selection = game_selection();
             delay(10);//debounce
@@ -257,6 +330,7 @@ void mainloop()
                 for (int i = 0; i < N_BUTTONS; i++) {
                     digitalWrite(ctrls[i][LED], LOW);
                 }
+                init = 1;
             }
     }
 
