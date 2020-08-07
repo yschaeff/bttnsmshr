@@ -1,0 +1,2 @@
+void mainsetup();
+void mainloop();
