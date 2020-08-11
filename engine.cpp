@@ -13,7 +13,7 @@ int btn_event[N_BUTTONS];
 Adafruit_NeoPixel strip(RGBC, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 static void
-boottest()
+post()
 {
     btn_lights(HIGH);
     delay(150);
@@ -50,7 +50,7 @@ mainsetup()
     strip.show();
     strip.setBrightness(50);
 
-    boottest();
+    post();
 }
 
 static void
