@@ -1,6 +1,10 @@
 #include <Arduino.h>
+#include "tasks.h"
+#include "scheduler.h"
+#include "io.h"
+#include "reaction.h"
 
-void game1()
+void reaction()
 {
     int N = 6;
     static int state = 0;

@@ -5,31 +5,12 @@
 #include "Adafruit_NeoPixel.h"
 #include "engine.h"
 #include "debounce.h"
+#include "io.h"
+#include "reaction.h"
 
-#define printf(fmt, ...)\
-    do{snprintf(_pf_buffer_, sizeof(_pf_buffer_), fmt, ##__VA_ARGS__);Serial.print(_pf_buffer_);}while(0)
-#define _PRINTF_BUFFER_LENGTH_ 64
-static char _pf_buffer_[_PRINTF_BUFFER_LENGTH_];
-
-#define N_BUTTONS 6
-
-#define btn_lights(state)\
-    for (int i = 0; i < N_BUTTONS; i++) { digitalWrite(ctrls[i][LED], state); }
-
-#define BTN 0
-#define LED 1
-static const int8_t ctrls[N_BUTTONS][2] = {{8, 2},{9, 3},{10, 4},{11, 5},{12, 6},{7, 13}};
 int btn_state[N_BUTTONS];
 int btn_event[N_BUTTONS];
-
-//LEDSTRAND
-#define RGB_PIN A0
-#define RGBC 30
 Adafruit_NeoPixel strip(RGBC, RGB_PIN, NEO_GRB + NEO_KHZ800);
-
-#define SPKR_PIN A2
-
-#include "reaction.include"
 
 static void
 boottest()
@@ -395,7 +376,7 @@ mainloop()
             buttontest();
             break;
         case 2:
-            game1();
+            reaction();
             break;
         case 3:
             music();
