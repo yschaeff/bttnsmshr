@@ -215,105 +215,165 @@ music()
     }
 }
 
-static void
-tetris_tick(int barptr, int dt, int arg3)
+struct tetris_state {
+    char bar[RGBC];
+    uint32_t shadow[RGBC];
+};
+
+static uint32_t
+index2color(int index)
 {
-    const int8_t barlen = 15;
-    static char *bar = (char *)barptr;
-    int c;
-    int cc = 0;
-    int stable = 1;
-    for (int i = 0; i < barlen-1; i++) {
-        if (bar[i] == 0) {
-            if (bar[i+1]) stable = 0;
-            bar[i] = bar[i+1];
-            bar[i+1] = 0;
-            cc = 0;
-        } else if (bar[i] == c) {
-            cc++;
-            if (cc == 3) {
-                bar[i] = 0;
-                bar[i-1] = 0;
-                bar[i-2] = 0;
-                cc = 0;
-            }
-        } else {
-            c = bar[i];
-            cc = 1;
-        }
+    switch (index) {
+        case 0: return strip.Color(0, 0, 0);
+        case 1: return strip.Color(255, 0, 0);
+        case 2: return strip.Color(0, 255, 0);
+        case 3: return strip.Color(0, 0, 255);
+        default: return strip.Color(255, 0, 255);
     }
-    if (stable) {
-        if (bar[barlen-1]) {
-            for (int i = 0; i < barlen; i++)
-                bar[i] = 1;
-        } else {
-            bar[barlen-1] = random(1,4);
-        }
-    }
-    schedule_insert(tetris_tick, barptr, dt, arg3, millis()+dt);
 }
 
 static void
-tetris_display_update(int dt, int barptr, int barlen)
+tetris_tick(int stateptr, int dt, int arg3)
 {
-    static char *bar = (char *)barptr;
-    for (int i = 0; i < barlen; i++) {
-        switch (bar[i]) {
-        case 0:
-            strip.setPixelColor(i, strip.Color(0, 0, 0));
-            break;
-        case 1:
-            strip.setPixelColor(i, strip.Color(255, 0, 0));
-            break;
-        case 2:
-            strip.setPixelColor(i, strip.Color(0, 255, 0));
-            break;
-        case 3:
-            strip.setPixelColor(i, strip.Color(0, 0, 255));
+    struct tetris_state *state = (struct tetris_state *)stateptr;
+    const int8_t barlen = 15;
+    char *bar = state->bar;
+    uint32_t *shadow = state->shadow;
+    for (int player = 0; player < 2; player++) {
+        int c;
+        int cc = 0;
+        int stable = 1;
+        for (int i = player*barlen; i < player*barlen+barlen-1; i++) {
+            if (bar[i] == 0) {
+                if (bar[i+1]) stable = 0;
+                bar[i] = bar[i+1];
+                shadow[i+1] = index2color(bar[i+1]);
+                bar[i+1] = 0;
+                cc = 0;
+            } else if (bar[i] == c) {
+                cc++;
+                if (cc == 3) {
+                    shadow[i] = index2color(bar[i]);
+                    shadow[i-1] = index2color(bar[i-1]);
+                    shadow[i-2] = index2color(bar[i-2]);
+                    bar[i] = 0;
+                    bar[i-1] = 0;
+                    bar[i-2] = 0;
+                    cc = 0;
+                    int other = !player;
+                    char m = random(4, 255);
+                    for (int j = other*barlen; j < other*barlen+barlen; j++) {
+                        char n = bar[j];
+                        bar[j] = m;
+                        m = n;
+                    }
+                }
+            } else {
+                c = bar[i];
+                cc = 1;
+            }
+        }
+        if (stable) {
+            if (bar[player*barlen+barlen-1]) {
+                for (int i = player*barlen; i < player*barlen+barlen; i++)
+                    bar[i] = (i&1)+1;
+            } else {
+                bar[player*barlen+barlen-1] = random(1,4);
+            }
         }
     }
+    schedule_insert(tetris_tick, stateptr, dt, arg3, millis()+dt);
+}
+
+static int
+fade(uint32_t color, float ratio)
+{
+    uint8_t
+      r = (uint8_t)(color >> 16),
+      g = (uint8_t)(color >>  8),
+      b = (uint8_t)color;
+    r = r<10?0:r-10;
+    g = g<10?0:g-10;
+    b = b<10?0:b-10;
+    //g *= ratio;
+    //b *= ratio;
+    //r *= ratio;
+    //g *= ratio;
+    //b *= ratio;
+    return strip.Color(r,g,b);
+}
+
+static void
+tetris_display_update(int dt, int stateptr, int barlen)
+{
+    struct tetris_state *state = (struct tetris_state *)stateptr;
+    char *bar = state->bar;
+    uint32_t *shadow = state->shadow;
+    for (int i = 0; i < barlen; i++) {
+        //printf("i:%d bar:%d shadow:%ld \n\r", i, bar[i], shadow[i]);
+        //if (bar[i]) {
+            strip.setPixelColor(i, index2color(bar[i]));
+        //} else {
+            //strip.setPixelColor(i, index2color(1));
+            //strip.setPixelColor(i, shadow[i]);
+            //shadow[i] = fade(shadow[i], 0.99);
+        //}
+    }
     strip.show();
-    schedule_insert(tetris_display_update, dt, barptr, barlen, millis()+dt);
+    schedule_insert(tetris_display_update, dt, stateptr, barlen, millis()+dt);
 }
 
 static void
 tetris(int init)
 {
-    int8_t colorcount = 3;
-    const int8_t barlen = 15;
-    static char bar[barlen];
+    const int8_t colorcount = 3;
+    const int8_t barlen = RGBC;
+    static tetris_state state;
+    char *bar = state.bar;
+    uint32_t *shadow = state.shadow;
     if (init) {
-        memset(bar, 0, sizeof(bar));
-        schedule_insert(tetris_tick, (int)bar, 200, -1, millis());
-        schedule_insert(tetris_display_update, 20, (int)bar, barlen, millis());
+        memset(bar, 0, sizeof(char[RGBC]));
+        memset(shadow, 0, sizeof(uint32_t[RGBC]));
+        schedule_insert(tetris_tick, (int)&state, 200, -1, millis());
+        schedule_insert(tetris_display_update, 20, (int)&state, barlen, millis());
         digitalWrite(ctrls[0][LED], HIGH);
+        digitalWrite(ctrls[4][LED], HIGH);
         schedule_insert(blink, ctrls[1][LED], HIGH, 100, millis());
+        schedule_insert(blink, ctrls[5][LED], HIGH, 100, millis());
     }
-    int8_t pinx = -1;
-    for (int i = barlen-1; i >= 0; i--) {
-        if(bar[i]) {
-            pinx = i;
-            break;
-        }
-    }
-    int btn1 = debounce(btn_state[0], 20, 0) && btn_state[0];
-    int btn2 = debounce(btn_state[1], 20, 1) && btn_state[1];
-    int stable = (pinx == 0 || bar[pinx-1]);
-    if (!stable) {
-        if (pinx >= 0) {
-            if (btn1) {
-                bar[pinx] %= colorcount;
-                bar[pinx]++;
+    int btn1[2];
+    btn1[0] = debounce(btn_state[0], 20, 0) && btn_state[0];
+    btn1[1] = debounce(btn_state[4], 20, 2) && btn_state[4];
+    int btn2[2];
+    btn2[0] = debounce(btn_state[1], 20, 1) && btn_state[1];
+    btn2[1] = debounce(btn_state[5], 20, 3) && btn_state[5];
+
+    for (int player = 0; player < 2; player++)
+    {
+        int8_t pinx = -1;
+        for (int i = player*15+15-1; i >= player*15; i--) {
+            if(bar[i]) {
+                pinx = i;
+                break;
             }
-            if (btn2) {
-                int8_t freex = -1;
-                for (int i = pinx-1; i >= 0; i--) {
-                    if (bar[i]) break;
-                    freex = i;
+        }
+        int stable = (pinx == player*15 || bar[pinx-1]);
+        if (!stable) {
+            if (pinx >= player*15) {
+                if (btn1[player]) {
+                    bar[pinx] %= colorcount;
+                    bar[pinx]++;
                 }
-                if (freex >= 0) {
-                    bar[freex] = bar[pinx];
-                    bar[pinx] = 0;
+                if (btn2[player]) {
+                    int8_t freex = -1;
+                    for (int i = pinx-1; i >= player*15; i--) {
+                        if (bar[i]) break;
+                        freex = i;
+                    }
+                    if (freex >= player*15) {
+                        bar[freex] = bar[pinx];
+                        bar[pinx] = 0;
+                    }
                 }
             }
         }
