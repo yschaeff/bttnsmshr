@@ -289,7 +289,7 @@ tetris_display_update(int dt, int stateptr, int barlen)
 {
     struct tetris_state *state = (struct tetris_state *)stateptr;
     char *bar = state->bar;
-    uint32_t *shadow = state->shadow;
+    //uint32_t *shadow = state->shadow;
     for (int i = 0; i < barlen; i++) {
         //printf("i:%d bar:%d shadow:%ld \n\r", i, bar[i], shadow[i]);
         //if (bar[i]) {
