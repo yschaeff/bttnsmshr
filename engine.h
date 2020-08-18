@@ -1,5 +1,5 @@
-#ifndef __ENGINE_H
-#define __ENGINE_H
+#ifndef ENGINE_H
+#define ENGINE_H
 
 void mainsetup();
 void mainloop();

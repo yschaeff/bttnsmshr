@@ -1,5 +1,5 @@
-#ifndef __IO_H
-#define __IO_H
+#ifndef IO_H
+#define IO_H
 
 #define printf(fmt, ...)\
     do{snprintf(_pf_buffer_, sizeof(_pf_buffer_), fmt, ##__VA_ARGS__);Serial.print(_pf_buffer_);}while(0)
