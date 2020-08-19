@@ -8,8 +8,8 @@
 #include "io.h"
 #include "reaction.h"
 
-int btn_state[N_BUTTONS];
-int btn_event[N_BUTTONS];
+bool btn_state[N_BUTTONS];
+bool btn_event[N_BUTTONS];
 Adafruit_NeoPixel strip(RGBC, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 static void
@@ -41,8 +41,8 @@ mainsetup()
     }
     pinMode(SPKR_PIN, OUTPUT);
     schedule_init();
-    memset(&btn_state, 0, sizeof(int[N_BUTTONS]));
-    memset(&btn_event, 0, sizeof(int[N_BUTTONS]));
+    memset(&btn_state, 0, sizeof(btn_state));
+    memset(&btn_event, 0, sizeof(btn_event));
     Serial.begin(9600);
     printf("EHLO\n\r");
 
@@ -56,8 +56,8 @@ mainsetup()
 static void
 proc_bttns()
 {
-    int btn_pstate[N_BUTTONS];
-    memcpy(&btn_pstate, &btn_state, sizeof(int[N_BUTTONS]));
+    bool btn_pstate[N_BUTTONS];
+    memcpy(&btn_pstate, &btn_state, sizeof(btn_pstate));
     for (int i = 0; i < N_BUTTONS; i++) {
         if (ctrls[i][BTN] < 0) continue;
         btn_state[i] = !digitalRead(ctrls[i][BTN]);

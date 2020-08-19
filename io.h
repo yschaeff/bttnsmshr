@@ -14,8 +14,8 @@ static char _pf_buffer_[_PRINTF_BUFFER_LENGTH_];
 #define BTN 0
 #define LED 1
 static const int8_t ctrls[N_BUTTONS][2] = {{8, 2},{9, 3},{10, 4},{11, 5},{12, 6},{7, 13}};
-extern int btn_state[N_BUTTONS];
-extern int btn_event[N_BUTTONS];
+extern bool btn_state[N_BUTTONS];
+extern bool btn_event[N_BUTTONS];
 
 //LEDSTRAND
 #include "Adafruit_NeoPixel.h"
