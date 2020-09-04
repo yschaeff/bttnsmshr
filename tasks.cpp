@@ -52,7 +52,6 @@ kit(int period, int startled, int nleds)
 {
     float pos = cos((millis()*2*PI)/(float)period)/2+.5;
     float sigma = 4.0/nleds;
-        Serial.println(pos);
     float e = 2.71828;
     for(int i=0; i<nleds; i++) {
         float br = 255 * pow(e, -.5*pow((i/(float)nleds-pos)/sigma, 2));
