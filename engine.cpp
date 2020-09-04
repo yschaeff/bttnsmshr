@@ -12,12 +12,75 @@ bool btn_state[N_BUTTONS];
 bool btn_event[N_BUTTONS];
 Adafruit_NeoPixel strip(RGBC, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
+static struct {
+    uint8_t cnt;
+    uint8_t max;
+} btn_pwm[N_BUTTONS];
+
+#define TIMER1_RESOLUTION  (65535ul)
+__attribute__((always_inline))
+static void inline setPeriod(unsigned long microseconds) {
+    const unsigned long cycles = ((F_CPU/100000 * microseconds) / 20);
+    uint16_t pwmPeriod;
+    uint8_t clockSelectBits;
+    if (cycles < TIMER1_RESOLUTION) {
+        clockSelectBits = _BV(CS10);
+        pwmPeriod = cycles;
+    } else if (cycles < TIMER1_RESOLUTION * 8) {
+        clockSelectBits = _BV(CS11);
+        pwmPeriod = cycles / 8;
+    } else if (cycles < TIMER1_RESOLUTION * 64) {
+        clockSelectBits = _BV(CS11) | _BV(CS10);
+        pwmPeriod = cycles / 64;
+    } else if (cycles < TIMER1_RESOLUTION * 256) {
+        clockSelectBits = _BV(CS12);
+        pwmPeriod = cycles / 256;
+    } else  if (cycles < TIMER1_RESOLUTION * 1024) {
+        clockSelectBits = _BV(CS12) | _BV(CS10);
+        pwmPeriod = cycles / 1024;
+    } else {
+        clockSelectBits = _BV(CS12) | _BV(CS10);
+        pwmPeriod = TIMER1_RESOLUTION - 1;
+    }
+    TCCR1A = 0;
+    TCNT1 = 0;
+    ICR1 = pwmPeriod;
+    TCCR1B = _BV(WGM13) | clockSelectBits;
+	TIMSK1 = _BV(TOIE1);
+}
+
+ISR(TIMER1_OVF_vect)
+{
+    static uint8_t cnt = 0;
+    uint8_t c = cnt;
+    uint8_t leds = 0;
+
+    if(--c <= 0)
+        c = 8;
+    cnt = c;
+    if(btn_pwm[0].max < c) { leds |= _BV(7); }
+    if(btn_pwm[1].max < c) { leds |= _BV(2); }
+    if(btn_pwm[2].max < c) { leds |= _BV(3); }
+    if(btn_pwm[3].max < c) { leds |= _BV(4); }
+    if(btn_pwm[4].max < c) { leds |= _BV(5); }
+    if(btn_pwm[5].max < c) { leds |= _BV(6); }
+    PORTD = leds; //Bit 0 and 1 are in use by the UART
+}
+
 static void
 post()
 {
     btn_lights(HIGH);
     delay(150);
     btn_lights(LOW);
+    delay(150);
+    if(0) {//Usefull for checking order of the LEDS
+        for (uint8_t i= 0; i< N_BUTTONS; i++) {
+            digitalWrite(ctrls[i][LED], HIGH);
+            delay(300);
+            digitalWrite(ctrls[i][LED], LOW);
+        }
+    }
     delay(150);
     strip.fill(strip.Color(255, 255, 255), 15, 15);
     strip.show();
@@ -149,28 +212,40 @@ simonsays()
     }
 }
 
+
 static int8_t
 game_selection()
 {
+    const bool use_pwm = false;
     int ngames = 5;
     static int8_t state = 0;
     if (state == 0) {
         schedule_insert(kit, 4000, 0, 15, millis());
-        for (int i = 0; i < ngames; i++) {
-            schedule_insert(glitch_task, ctrls[i][LED], HIGH, 0, millis());
-        }
         state++;
+        if(!use_pwm) {
+            for (int i = 0; i < ngames; i++) {
+                schedule_insert(glitch_task, ctrls[i][LED], HIGH, 0, millis());
+            }
+        }
+        else {
+            for (uint8_t i= 0; i< N_BUTTONS; i++) {
+                btn_pwm[i].max = i + 1 ;
+            }
+            setPeriod(50);
+        }
     }
 
     for (int i = 0; i < N_BUTTONS; i++) {
         if (btn_event[i] && !btn_state[i]) {
             schedule_remove(kit);
-            schedule_remove(glitch_task);
             strip.clear();
             strip.show();
-            for (int i = 0; i < N_BUTTONS; i++) {
-                digitalWrite(ctrls[i][LED], LOW);
+            if(!use_pwm) {
+                schedule_remove(glitch_task);
+            } else {
+                TCCR1B = 0; //Stop timer
             }
+            btn_lights(LOW);
             randomSeed(millis());
             return i;
         }
@@ -266,6 +341,7 @@ tetris_tick(int stateptr, int dt, int arg3)
     schedule_insert(tetris_tick, stateptr, dt, arg3, millis()+dt);
 }
 
+#if 0
 static int
 fade(uint32_t color, float ratio)
 {
@@ -283,6 +359,7 @@ fade(uint32_t color, float ratio)
     //b *= ratio;
     return strip.Color(r,g,b);
 }
+#endif
 
 static void
 tetris_display_update(int dt, int stateptr, int barlen)
@@ -389,9 +466,6 @@ mainloop()
             selection = game_selection();
             delay(10);//debounce
             if (selection >= 0) {
-                for (int i = 0; i < N_BUTTONS; i++) {
-                    digitalWrite(ctrls[i][LED], LOW);
-                }
                 init = 1;
             }
     }
